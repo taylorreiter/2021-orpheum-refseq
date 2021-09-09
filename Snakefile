@@ -1,10 +1,9 @@
 import pandas as pd
 metadata = pd.read_csv("inputs/metadata.tsv", sep = "\t", header = 0)
 SRR = metadata['Run']
-
-ORPHEUM_DB = ["roary_with_megahit_and_isolates", "ruminococcusB", "f__Lachnospiraceae", "p__Firmicutes_A"]
+ORPHEUM_DB = ["c__Clostridia", "f__Lachnospiraceae", "p__Firmicutes_A"]
 # set constrained k sizes
-dayhoff_ksizes = [11, 13, 15, 17]
+dayhoff_ksizes = [14, 16, 18]
 protein_ksizes = [7, 10, 11]
 # Snakemake will use the ALPHA_KSIZE wildcard from rule all to generate output file names
 # Then, snakemake will back propagate the strings from the final file names to solve for
@@ -20,8 +19,8 @@ rule all:
         expand("outputs/aa_paladin/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
         expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
         expand("outputs/nuc_coding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
-        expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/{}.nuc_noncoding.stat", alpha_ksize=ALPHA_KSIZE, orpheum_db = ORPHEUM_DB, ...),
-        expand("outputs/nuc_coding_bwa/{orpheum_db}/{alpha_ksize}/{}.nuc_coding.stat", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, ...),
+        expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/{}.nuc_noncoding.stat", alpha_ksize=ALPHA_KSIZE, orpheum_db = ORPHEUM_DB, srr = SRR),
+        expand("outputs/nuc_coding_bwa/{orpheum_db}/{alpha_ksize}/{}.nuc_coding.stat", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
 
 rule download_sra:
     output: 
@@ -55,12 +54,12 @@ rule fastp_sra:
 
 rule orpheum_translate_sgc_nbhds:        
     input: 
-        ref="inputs/orpheum_index/{orpheum_db}-{alphabet}-k{ksize}.bloomfilter.nodegraph",
+        ref="inputs/orpheum_index/{orpheum_db}.{alphabet}-k{ksize}.nodegraph",
         fastq="outputs/{library}.fastq"
     output:
         pep="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding.faa",
         nuc="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_coding.fna",
-        nuc_noncoding="outputs/orpheum/{orpheum_db}/{alphabet}-ksize{ksize}/{srr}.reads.nuc_noncoding.fna",
+        nuc_noncoding="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.reads.nuc_noncoding.fna",
         csv="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding_scores.csv",
         json="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.summary.json"
     conda: "envs/orpheum.yml"
