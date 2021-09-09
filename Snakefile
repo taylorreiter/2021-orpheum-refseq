@@ -12,8 +12,8 @@ protein_ksizes = [7, 10, 11]
 # The underscore for the chrs in the list ALPHA_KSIZE separates the alphabet string from 
 # the ksize string, allowing snakemake to solve {alphabet}_{ksize} wildcard strings. 
 # Therefore, the chrs in the ALPHA_KSIZE list also set the alphabet names as "dayhoff" and "protein".
-ALPHA_KSIZE = expand('protein_ksize{k}', k=protein_ksizes)
-ALPHA_KSIZE += expand('dayhoff_ksize{k}', k=dayhoff_ksizes)
+ALPHA_KSIZE = expand('protein-k{k}', k=protein_ksizes)
+ALPHA_KSIZE += expand('dayhoff-k{k}', k=dayhoff_ksizes)
 
 rule all:
     input:
@@ -55,16 +55,16 @@ rule fastp_sra:
 
 rule orpheum_translate_sgc_nbhds:        
     input: 
-        ref="outputs/orpheum_index/{orpheum_db}_{alphabet}_ksize{ksize}.bloomfilter.nodegraph",
+        ref="inputs/orpheum_index/{orpheum_db}-{alphabet}-k{ksize}.bloomfilter.nodegraph",
         fastq="outputs/{library}.fastq"
     output:
-        pep="outputs/orpheum/{orpheum_db}/{alphabet}_ksize{ksize}/{library}.coding.faa",
-        nuc="outputs/orpheum/{orpheum_db}/{alphabet}_ksize{ksize}/{library}.nuc_coding.fna",
-        nuc_noncoding="outputs/orpheum/{orpheum_db}/{alphabet}_ksize{ksize}/{library}.reads.nuc_noncoding.fna",
-        csv="outputs/orpheum/{orpheum_db}/{alphabet}_ksize{ksize}/{library}.coding_scores.csv",
-        json="outputs/orpheum/{orpheum_db}/{alphabet}_ksize{ksize}/{library}.summary.json"
+        pep="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding.faa",
+        nuc="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_coding.fna",
+        nuc_noncoding="outputs/orpheum/{orpheum_db}/{alphabet}-ksize{ksize}/{srr}.reads.nuc_noncoding.fna",
+        csv="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding_scores.csv",
+        json="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.summary.json"
     conda: "envs/orpheum.yml"
-    benchmark: "benchmarks/orpheum_translate_{library}_{orpheum_db}_{alphabet}_ksize{ksize}.txt"
+    benchmark: "benchmarks/orpheum-translate-{srr}-{orpheum_db}-{alphabet}-k{ksize}.txt"
     resources: mem_mb = 16000
     threads: 1
     shell:'''
