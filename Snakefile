@@ -28,7 +28,7 @@ rule all:
 rule download_sra:
     output: 
         r1="inputs/raw/{srr}_1.fq.gz",
-        r2="inputs/{srr}_2.fq.gz"
+        r2="inputs/raw/{srr}_2.fq.gz"
     conda: "envs/sra-tools.yml"
     params: out_dir= "inputs/raw"
     resources: mem_mb = 2000
