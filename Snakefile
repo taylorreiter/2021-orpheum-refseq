@@ -5,7 +5,7 @@ SRR = metadata['Run']
 ORPHEUM_DB = ["p__Firmicutes_A"]
 # set constrained k sizes
 dayhoff_ksizes = [14, 16, 18]
-protein_ksizes = [7, 10, 11]
+protein_ksizes = [7, 10]
 # Snakemake will use the ALPHA_KSIZE wildcard from rule all to generate output file names
 # Then, snakemake will back propagate the strings from the final file names to solve for
 # the wildcards "alphabet" and "ksize" throughout the rest of the workflow. 
@@ -34,7 +34,7 @@ rule download_sra:
     resources: mem_mb = 2000
     threads: 1
     shell:"""
-    fasterq-dump {wilcards.srr} -O {params.out_dir} -e {threads} -p
+    fasterq-dump {wildcards.srr} -O {params.out_dir} -e {threads} -p
     gzip -9c {params.out_dir}/{wildcards.srr}_1.fastq > {output.r1}
     gzip -9c {params.out_dir}/{wildcards.srr}_2.fastq > {output.r2}
     rm {params.out_dir}/{wildcards.srr}_*.fastq
