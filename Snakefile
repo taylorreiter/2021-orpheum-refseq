@@ -1,7 +1,8 @@
 import pandas as pd
 metadata = pd.read_csv("inputs/metadata.tsv", sep = "\t", header = 0)
 SRR = metadata['Run']
-ORPHEUM_DB = ["c__Clostridia", "f__Lachnospiraceae", "p__Firmicutes_A"]
+#ORPHEUM_DB = ["c__Clostridia", "f__Lachnospiraceae", "p__Firmicutes_A"]
+ORPHEUM_DB = ["p__Firmicutes_A"]
 # set constrained k sizes
 dayhoff_ksizes = [14, 16, 18]
 protein_ksizes = [7, 10, 11]
@@ -16,11 +17,13 @@ ALPHA_KSIZE += expand('dayhoff-k{k}', k=dayhoff_ksizes)
 
 rule all:
     input:
-        expand("outputs/aa_paladin/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
-        expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
-        expand("outputs/nuc_coding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
-        expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/{}.nuc_noncoding.stat", alpha_ksize=ALPHA_KSIZE, orpheum_db = ORPHEUM_DB, srr = SRR),
-        expand("outputs/nuc_coding_bwa/{orpheum_db}/{alpha_ksize}/{}.nuc_coding.stat", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
+        #expand("outputs/aa_paladin/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
+        #expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
+        #expand("outputs/nuc_coding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
+        #expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/{srr}.nuc_noncoding.stat", alpha_ksize=ALPHA_KSIZE, orpheum_db = ORPHEUM_DB, srr = SRR),
+        #expand("outputs/nuc_coding_bwa/{orpheum_db}/{alpha_ksize}/{srr}.nuc_coding.stat", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
+        expand("outputs/orpheum/{orpheum_db}/{alpha_ksize}/{srr}.summary.json",orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
+
 
 rule download_sra:
     output: 
@@ -52,10 +55,23 @@ rule fastp_sra:
     fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} -q 4 -j {output.json} -l 31 -c
     '''
 
+rule kmertrim_sra:
+    input: 
+        r1 = 'outputs/fastp/{srr}_R1.fastp.fq.gz',
+        r2 = 'outputs/fastp/{srr}_R2.fastp.fq.gz',
+    output: "outputs/abundtrim/{srr}.abundtrim.fq.gz"
+    conda: 'envs/orpheum.yml'
+    threads: 1
+    resources:
+        mem_mb=64000
+    shell:'''
+    interleave-reads.py {input} | trim-low-abund.py --gzip -C 3 -Z 18 -M 60e9 -V - -o {output}
+    '''
+
 rule orpheum_translate_sgc_nbhds:        
     input: 
         ref="inputs/orpheum_index/{orpheum_db}.{alphabet}-k{ksize}.nodegraph",
-        fastq="outputs/{library}.fastq"
+        fastq="outputs/abundtrim/{srr}.abundtrim.fq.gz"
     output:
         pep="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding.faa",
         nuc="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_coding.fna",
