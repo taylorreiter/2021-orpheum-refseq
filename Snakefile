@@ -1,6 +1,8 @@
 import pandas as pd
 metadata = pd.read_csv("inputs/metadata.tsv", sep = "\t", header = 0)
-SRR = metadata['Run']
+SRR = metadata['Run'].to_list()
+ACC = metadata['assembly_accession'].to_list()
+
 #ORPHEUM_DB = ["c__Clostridia", "f__Lachnospiraceae", "p__Firmicutes_A"]
 ORPHEUM_DB = ["p__Firmicutes_A"]
 # set constrained k sizes
@@ -28,7 +30,7 @@ rule all:
         #expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/{srr}.nuc_noncoding.stat", alpha_ksize=ALPHA_KSIZE, orpheum_db = ORPHEUM_DB, srr = SRR),
         #expand("outputs/nuc_coding_bwa/{orpheum_db}/{alpha_ksize}/{srr}.nuc_coding.stat", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
         expand("outputs/orpheum/{orpheum_db}/{alpha_ksize}/{srr}.summary.json",orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
-
+        expand("outputs/prodigal/{acc}_summary.txt", acc = ACC)
 
 rule download_sra:
     output: 
