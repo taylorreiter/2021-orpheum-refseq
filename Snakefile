@@ -15,6 +15,11 @@ protein_ksizes = [7, 10]
 ALPHA_KSIZE = expand('protein-k{k}', k=protein_ksizes)
 ALPHA_KSIZE += expand('dayhoff-k{k}', k=dayhoff_ksizes)
 
+# Do something similar to constrain SRR:genome accessions
+metadata['srr_acc'] = metadata['Run'] + "-" + metadata['assembly_accession']
+SRR_ACC =  metadata['srr_acc'].to_list()
+print(SRR_ACC)
+
 rule all:
     input:
         #expand("outputs/aa_paladin/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
@@ -50,7 +55,7 @@ rule fastp_sra:
         json = 'outputs/fastp/{srr}.json'
     conda: 'envs/fastp.yml'
     threads: 1
-    resources: mem_mb = 2000
+    resources: mem_mb = 8000
     shell:'''
     fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} -q 4 -j {output.json} -l 31 -c
     '''
@@ -63,7 +68,7 @@ rule kmertrim_sra:
     conda: 'envs/orpheum.yml'
     threads: 1
     resources:
-        mem_mb=64000
+        mem_mb=72000
     shell:'''
     interleave-reads.py {input} | trim-low-abund.py --gzip -C 3 -Z 18 -M 60e9 -V - -o {output}
     '''
@@ -80,9 +85,36 @@ rule orpheum_translate_sgc_nbhds:
         json="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.summary.json"
     conda: "envs/orpheum.yml"
     benchmark: "benchmarks/orpheum-translate-{srr}-{orpheum_db}-{alphabet}-k{ksize}.txt"
-    resources: mem_mb = 16000
+    resources: mem_mb = 32000
     threads: 1
     shell:'''
     orpheum translate --alphabet {wildcards.alphabet} --peptide-ksize {wildcards.ksize}  --peptides-are-bloom-filter --noncoding-nucleotide-fasta {output.nuc_noncoding} --coding-nucleotide-fasta {output.nuc} --csv {output.csv} --json-summary {output.json} {input.ref} {input.fastq} > {output.pep}
     '''
 
+##################################################
+## PREPROCESS ASSEMBLIES
+##################################################
+
+rule download_assemblies:
+    output: "inputs/assemblies/{acc}_genomic.fna",
+    threads: 1
+    resources: mem_mb=1000
+    run:
+        row = m.loc[m['assembly_accessions'] == wildcards.acc]
+        assembly_ftp = row['ftp_path'].values
+        shell("wget -O {output} {assembly_ftp}")
+
+
+rule prodigal_translate_assemblies:
+    input: "inputs/assemblies/{acc}_genomic.fna",
+    output: 
+        genes= "outputs/prodigal/{acc}.genes.fa",
+        proteins="outputs/prodigal/{acc}.proteins.faa",
+        summary="outputs/prodigal/{acc}_summary.txt",
+    conda: "envs/prodigal.yml"
+    threads: 1
+    resources:
+        mem_mb=lambda wildcards, attempt: attempt *10000,
+    shell:"""
+    prodigal -i {input} -o {output.genes} -a {output.proteins} -w {output.summary}
+    """
