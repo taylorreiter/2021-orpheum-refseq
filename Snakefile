@@ -101,7 +101,7 @@ rule download_assemblies:
     threads: 1
     resources: mem_mb=1000
     run:
-        row = m.loc[m['assembly_accessions'] == wildcards.acc]
+        row = metadata.loc[m['assembly_accessions'] == wildcards.acc]
         assembly_ftp = row['ftp_path'].values
         shell("wget -O {output} {assembly_ftp}")
 
