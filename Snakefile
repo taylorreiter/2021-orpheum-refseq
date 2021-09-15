@@ -155,4 +155,55 @@ rule summarize_coding_assemblies:
     output: tsv = "outputs/assembly_stats/all_assembly_stats.tsv"
     threads: 1
     resources: mem_mb = 4000
+    conda: "envs/tidyverse.yml"
     script: "scripts/combine_assembly_stats.R"
+
+rule index_nuc_cds_assemblies:
+    input: "outputs/assembly_prodigal/{acc}.genes.fa"
+    output: "outputs/assembly_prodigal/{acc}.genes.fa.bwt"
+    conda: "envs/bwa.yml"
+    resources: mem_mb = 2000
+    threads: 1
+    shell:'''
+    bwa index {input}
+    ''' 
+
+rule map_nucleotide_reads_against_nucleotide_cds:
+    input:
+    input: 
+    output: 
+        ref_nuc_cds= "outputs/assembly_prodigal/{acc}.genes.fa"
+        ref_nuc_cds_bwt= "outputs/assembly_prodigal/{acc}.genes.fa.bwt"
+        reads="outputs/abundtrim/{srr}.abundtrim.fq.gz"
+    output: temp("outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam")
+    conda: "envs/bwa.yml"
+    threads: 1
+    resources: mem_mb = 4000
+    shell:'''
+    bwa mem i -p -t {threads} {input.ref_nuc_cds} {input.reads} | samtools sort -o {output} -
+    '''
+
+rule flagstat_map_nuc_noncoding_to_ref_nuc_set:
+    input: "outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam"
+    output: "outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam"
+    conda: "envs/bwa.yml"
+    resources: mem_mb = 2000
+    shell:'''
+    samtools flagstat {input} > {output}
+    '''
+
+rule multiqc_flagstat_map_nuc_noncoding_to_ref_nuc_set:
+    input: expand("outputs/assembly_abundtrim_bwa/{srr_acc}.bam", srr_acc = SRR_ACC)
+    output: "outputs/assembly_abundtrim_bwa/multiqc_report.html"
+    params: 
+        iodir = "outputs/assembly_abundtrim_bwa/"
+    conda: "envs/multiqc.yml"
+    resources: mem_mb = 8000
+    threads: 1
+    shell:'''
+    multiqc {params.iodir} -o {params.iodir} 
+    '''
+
+####################################################
+## Evaluate orpheum
+####################################################
