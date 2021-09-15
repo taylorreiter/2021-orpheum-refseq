@@ -69,9 +69,9 @@ rule kmertrim_sra:
     conda: 'envs/orpheum.yml'
     threads: 1
     resources:
-        mem_mb=72000
+        mem_mb=64000
     shell:'''
-    interleave-reads.py {input} | trim-low-abund.py --gzip -C 3 -Z 18 -M 60e9 -V - -o {output}
+    interleave-reads.py {input} | trim-low-abund.py --gzip -C 3 -Z 18 -M 50e9 -V - -o {output}
     '''
 
 rule orpheum_translate_sra_reads:        
@@ -86,7 +86,7 @@ rule orpheum_translate_sra_reads:
         json="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.summary.json"
     conda: "envs/orpheum.yml"
     benchmark: "benchmarks/orpheum-translate-{srr}-{orpheum_db}-{alphabet}-k{ksize}.txt"
-    resources:  mem_mb=lambda wildcards, attempt: attempt *8000
+    resources:  mem_mb=lambda wildcards, attempt: attempt *32000
     threads: 1
     shell:'''
     orpheum translate --alphabet {wildcards.alphabet} --peptide-ksize {wildcards.ksize}  --peptides-are-bloom-filter --noncoding-nucleotide-fasta {output.nuc_noncoding} --coding-nucleotide-fasta {output.nuc} --csv {output.csv} --json-summary {output.json} {input.ref} {input.fastq} > {output.pep}
@@ -97,17 +97,19 @@ rule orpheum_translate_sra_reads:
 ##################################################
 
 rule download_assemblies:
-    output: "inputs/assemblies/{acc}_genomic.fna",
+    output: "inputs/assemblies/{acc}_genomic.fna.gz",
     threads: 1
     resources: mem_mb=1000
     run:
-        row = metadata.loc[m['assembly_accessions'] == wildcards.acc]
+        row = metadata.loc[metadata['assembly_accession'] == wildcards.acc]
         assembly_ftp = row['ftp_path'].values
+        assembly_ftp = assembly_ftp[0]
+        assembly_ftp = assembly_ftp + "/*genomic.fna.gz"
         shell("wget -O {output} {assembly_ftp}")
 
 
 rule prodigal_translate_assemblies:
-    input: "inputs/assemblies/{acc}_genomic.fna",
+    input: "inputs/assemblies/{acc}_genomic.fna.gz",
     output: 
         genes= "outputs/prodigal/{acc}.genes.fa",
         proteins="outputs/prodigal/{acc}.proteins.faa",
