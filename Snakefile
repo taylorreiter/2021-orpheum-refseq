@@ -81,7 +81,7 @@ rule orpheum_translate_sra_reads:
     output:
         pep="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding.faa",
         nuc="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_coding.fna",
-        nuc_noncoding="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.reads.nuc_noncoding.fna",
+        nuc_noncoding="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_noncoding.fna",
         csv="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding_scores.csv",
         json="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.summary.json"
     conda: "envs/orpheum.yml"
@@ -207,3 +207,118 @@ rule multiqc_flagstat_map_nuc_noncoding_to_ref_nuc_set:
 ####################################################
 ## Evaluate orpheum
 ####################################################
+
+## Amino Acid ######################################
+
+rule paladin_index_assembly_aa:
+    input: "outputs/assembly_prodigal/{acc}.proteins.faa" 
+    output:"outputs/assembly_prodigal/{acc}.proteins.faa.pro",
+    conda: "envs/paladin.yml"
+    resources: mem_mb = 8000
+    threads: 1
+    shell:'''
+    paladin index -r3 {input}
+    '''
+
+rule paladin_align_aa:
+    input: 
+        ref="outputs/assembly_prodigal/{acc}.proteins.faa"
+        idx="outputs/assembly_prodigal/{acc}.proteins.faa.pro",
+        pep="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding.faa"
+    output: temp("outputs/aa_paladin/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.aa.sam")
+    conda: "envs/paladin.yml"
+    resources: mem_mb = 2000
+    threads: 1
+    shell:'''
+    paladin align -t 1 -p {input.ref} {input.pep} > {output}
+    '''
+
+rule samtools_flagstat_paladin_aa:
+    input: "outputs/aa_paladin/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.aa.sam"
+    output:"outputs/aa_paladin/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.aa.flagstat"
+    conda: "envs/paladin.yml"
+    resources: mem_mb = 2000
+    threads: 1
+    shell:'''
+    samtools flagstat {input} > {output}
+    '''
+
+rule multiqc_samtools_flagstat_paladin:
+    input: expand("outputs/aa_paladin/{{orpheum_db}}/{{alphabet}}-k{{ksize}}/{srr_acc}.aa.flagstat", srr_acc = SRR_ACC)
+    output: "outputs/aa_paladin/{orpheum_db}/{alphabet}-k{ksize}/multiqc_report.html"
+    resources: mem_mb = 8000
+    threads: 1
+    params: 
+        iodir = lambda wildcards: "outputs/aa_paladin/" + wildcards.orpheum_db + "/" + wildcards.alphabet + "-k" + wildcards.ksize,
+    conda: "envs/multiqc.yml"
+    resources: mem_mb = 8000
+    threads: 1
+    shell:'''
+    multiqc {params.iodir} -o {params.iodir} 
+    '''
+
+## Nucleotide noncoding ##########################
+
+rule cut_dedup_nuc_noncoding_read_names:
+    input: "outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_noncoding.fna",
+    output:  "outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_noncoding.cut.dedup.fna.gz",
+    resources: mem_mb = 8000
+    threads: 1
+    shell:'''
+    sed '/^>/ s/__.*//g' {input} | awk '/^>/{{f=!d[$1];d[$1]=1}}f' | gzip > {output}
+    '''
+
+rule grab_cut_dedup_coding_read_names:
+    input: "outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding.faa", 
+    output: "outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.aa_names.cut.dedup.txt",  
+    resources: mem_mb = 8000
+    threads: 1
+    shell:'''
+    grep ">" {input} | sed '/^>/ s/__.*//g' | awk '/^>/{{f=!d[$1];d[$1]=1}}f' > {output}
+    '''
+
+rule isolate_noncoding_only_reads:
+    input: 
+        pep ="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.aa_names.cut.dedup.txt",  
+        noncoding = "outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_noncoding.cut.dedup.fna.gz",
+    output: "outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_noncoding.cut.dedup.only.fna.gz",
+    #conda: "envs/bioawk.yml"
+    resources: mem_mb = 8000
+    threads: 1
+    shell:"""
+    cat {input.noncoding} | paste - - | grep -v -F -f {input.pep} | tr "\t" "\n" | gzip > {output}
+    """
+
+rule map_nuc_noncoding_to_ref_nuc_cds: 
+    input: 
+        ref_nuc_cds= "outputs/assembly_prodigal/{acc}.genes.fa"
+        ref_nuc_cds_bwt= "outputs/assembly_prodigal/{acc}.genes.fa.bwt"
+        nuc_noncoding="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_noncoding.cut.dedup.only.fna.gz",
+    output: temp("outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.nuc_noncoding.bam")
+    conda: "envs/bwa.yml"
+    resources: mem_mb = 2000
+    threads: 1
+    shell:'''
+    bwa mem -t {threads} {input.ref_nuc_set} {input.nuc_noncoding} | samtools sort -o {output} -
+    '''
+
+rule flagstat_map_nuc_noncoding_to_ref_nuc_set:
+    input: "outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.nuc_noncoding.bam"
+    output: "outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.nuc_noncoding.flagstat"
+    conda: "envs/bwa.yml"
+    resources: mem_mb = 2000
+    shell:'''
+    samtools flagstat {input} > {output}
+    '''
+
+rule multiqc_flagstat_map_nuc_noncoding_to_ref_nuc_set:
+    input: expand("outputs/nuc_noncoding_bwa/{{orpheum_db}}/{{alphabet}}-k{{ksize}}/{srr_acc}.nuc_noncoding.flagstat", srr_acc = SRR_ACC), 
+    output: "outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/multiqc_report.html"
+    params: 
+        iodir = lambda wildcards: "outputs/nuc_noncoding_bwa/" + wildcards.orpheum_db + "/" + wildcards.alphabet + "-k" + wildcards.ksize,
+    conda: "envs/multiqc.yml"
+    resources: mem_mb = 8000
+    threads: 1
+    shell:'''
+    multiqc {params.iodir} -o {params.iodir} 
+    '''
