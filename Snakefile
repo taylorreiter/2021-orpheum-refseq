@@ -107,17 +107,52 @@ rule download_assemblies:
         assembly_ftp = assembly_ftp + "/*genomic.fna.gz"
         shell("wget -O {output} {assembly_ftp}")
 
+rule gunzip_assemblies:
+    input: "inputs/assemblies/{acc}_genomic.fna.gz",
+    output: "inputs/assemblies/{acc}_genomic.fna",
+    threads: 1
+    resources: mem_mb=1000
+    shell:'''
+    gunzip -c {input} > {output}
+    '''
 
 rule prodigal_translate_assemblies:
-    input: "inputs/assemblies/{acc}_genomic.fna.gz",
+    input: "inputs/assemblies/{acc}_genomic.fna",
     output: 
-        genes= "outputs/prodigal/{acc}.genes.fa",
-        proteins="outputs/prodigal/{acc}.proteins.faa",
-        summary="outputs/prodigal/{acc}_summary.txt",
+        logg= "outputs/assembly_prodigal/{acc}.out",
+        proteins="outputs/assembly_prodigal/{acc}.proteins.faa",
+        genes="outputs/assembly_prodigal/{acc}.genes.fa"
     conda: "envs/prodigal.yml"
     threads: 1
     resources:
         mem_mb=lambda wildcards, attempt: attempt *10000,
     shell:"""
-    prodigal -i {input} -o {output.genes} -a {output.proteins} -w {output.summary}
+    prodigal -i {input} -o {output.log} -a {output.proteins} -d {output.genes} 
     """
+
+rule count_coding_bp_assemblies:
+    input: "inputs/assemblies/{acc}_genomic.fna"
+    output: "outputs/assembly_stats/{acc}_total_bp.txt"
+    threads: 1
+    resources: mem_mb=1000
+    shell:'''
+    grep -v ">" {input} | wc -m > {output}
+    '''
+
+rule count_total_aa_assemblies:
+    input: "outputs/assembly_prodigal/{acc}.proteins.faa"
+    output: "outputs/assembly_stats/{acc}_aa.txt"
+    threads: 1
+    resources: mem_mb=1000
+    shell:'''
+    grep -v ">" {input} | wc -m > {output}
+    '''
+
+rule summarize_coding_assemblies:
+    input:
+        aa=expand("outputs/assembly_stats/{acc}_aa.txt", acc = ACC),
+        bp=expand("outputs/assembly_stats/{acc}_total_bp.txt", acc = ACC)
+    output: tsv = "outputs/assembly_stats/all_assembly_stats.tsv"
+    threads: 1
+    resources: mem_mb = 4000
+    script: "scripts/combine_assembly_stats.R"
