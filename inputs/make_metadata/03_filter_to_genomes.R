@@ -5,6 +5,17 @@ library(readr)
 set.seed(1)
 setwd("~/github/2021-orpheum-refseq")
 
+refseq <- read_tsv("https://ftp.ncbi.nlm.nih.gov/genomes/refseq/assembly_summary_refseq.txt", 
+                   skip = 2, col_names = "assembly_accession") %>%
+  mutate(accession_number = gsub("GCF_", "", assembly_accession))
+
+prok <- read_tsv("https://ftp.ncbi.nlm.nih.gov/genomes/GENOME_REPORTS/prokaryotes.txt") %>%
+  clean_names() 
+
+prok_refseq <- prok %>%
+  mutate(accession_number = gsub("GCA_", "", assembly_accession)) %>%
+  filter(accession_number %in% refseq$accession_number) 
+  
 sra_refseq <- read_tsv("inputs/make_metadata/refseq_prokaryotes_metadata_sra.txt", 
                        col_names = c("Run", 'spots', 'bases', 'spots_with_mates',
                                      'avgLength', 'size_MB', 'download_path', 
@@ -30,7 +41,9 @@ all_sub <- all %>%
    group_by(group)  %>%
    sample_n(5, replace = T) %>%
    distinct()
+
 all_sub <- all_sub %>% 
   filter(!is.na(ftp_path))
+
 
 write_tsv(all_sub, "inputs/metadata.tsv")
