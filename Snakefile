@@ -29,7 +29,7 @@ rule all:
         #expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/{srr}.nuc_noncoding.stat", alpha_ksize=ALPHA_KSIZE, orpheum_db = ORPHEUM_DB, srr = SRR),
         #expand("outputs/nuc_coding_bwa/{orpheum_db}/{alpha_ksize}/{srr}.nuc_coding.stat", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
         expand("outputs/orpheum/{orpheum_db}/{alpha_ksize}/{srr}.summary.json",orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
-        expand("outputs/prodigal/{acc}_summary.txt", acc = ACC)
+        expand("outputs/assembly_prodigal/{acc}.genes.fa", acc = ACC)
 
 rule download_sra:
     output: 
@@ -86,7 +86,7 @@ rule orpheum_translate_sra_reads:
         json="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.summary.json"
     conda: "envs/orpheum.yml"
     benchmark: "benchmarks/orpheum-translate-{srr}-{orpheum_db}-{alphabet}-k{ksize}.txt"
-    resources:  mem_mb=lambda wildcards, attempt: attempt *32000
+    resources:  mem_mb=lambda wildcards, attempt: attempt *64000
     threads: 1
     shell:'''
     orpheum translate --alphabet {wildcards.alphabet} --peptide-ksize {wildcards.ksize}  --peptides-are-bloom-filter --noncoding-nucleotide-fasta {output.nuc_noncoding} --coding-nucleotide-fasta {output.nuc} --csv {output.csv} --json-summary {output.json} {input.ref} {input.fastq} > {output.pep}
@@ -127,7 +127,7 @@ rule prodigal_translate_assemblies:
     resources:
         mem_mb=lambda wildcards, attempt: attempt *10000,
     shell:"""
-    prodigal -i {input} -o {output.log} -a {output.proteins} -d {output.genes} 
+    prodigal -i {input} -o {output.logg} -a {output.proteins} -d {output.genes} 
     """
 
 rule count_coding_bp_assemblies:
@@ -169,11 +169,9 @@ rule index_nuc_cds_assemblies:
     ''' 
 
 rule map_nucleotide_reads_against_nucleotide_cds:
-    input:
     input: 
-    output: 
-        ref_nuc_cds= "outputs/assembly_prodigal/{acc}.genes.fa"
-        ref_nuc_cds_bwt= "outputs/assembly_prodigal/{acc}.genes.fa.bwt"
+        ref_nuc_cds= "outputs/assembly_prodigal/{acc}.genes.fa",
+        ref_nuc_cds_bwt= "outputs/assembly_prodigal/{acc}.genes.fa.bwt",
         reads="outputs/abundtrim/{srr}.abundtrim.fq.gz"
     output: temp("outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam")
     conda: "envs/bwa.yml"
@@ -183,7 +181,7 @@ rule map_nucleotide_reads_against_nucleotide_cds:
     bwa mem i -p -t {threads} {input.ref_nuc_cds} {input.reads} | samtools sort -o {output} -
     '''
 
-rule flagstat_map_nuc_noncoding_to_ref_nuc_set:
+rule flagstat_map_nucleotide_reads_against_nucleotide_cds:
     input: "outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam"
     output: "outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam"
     conda: "envs/bwa.yml"
@@ -192,7 +190,7 @@ rule flagstat_map_nuc_noncoding_to_ref_nuc_set:
     samtools flagstat {input} > {output}
     '''
 
-rule multiqc_flagstat_map_nuc_noncoding_to_ref_nuc_set:
+rule multiqc_flagstat_map_nucleotide_reads_against_nucleotide_cds:
     input: expand("outputs/assembly_abundtrim_bwa/{srr_acc}.bam", srr_acc = SRR_ACC)
     output: "outputs/assembly_abundtrim_bwa/multiqc_report.html"
     params: 
@@ -222,7 +220,7 @@ rule paladin_index_assembly_aa:
 
 rule paladin_align_aa:
     input: 
-        ref="outputs/assembly_prodigal/{acc}.proteins.faa"
+        ref="outputs/assembly_prodigal/{acc}.proteins.faa",
         idx="outputs/assembly_prodigal/{acc}.proteins.faa.pro",
         pep="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding.faa"
     output: temp("outputs/aa_paladin/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.aa.sam")
@@ -291,8 +289,8 @@ rule isolate_noncoding_only_reads:
 
 rule map_nuc_noncoding_to_ref_nuc_cds: 
     input: 
-        ref_nuc_cds= "outputs/assembly_prodigal/{acc}.genes.fa"
-        ref_nuc_cds_bwt= "outputs/assembly_prodigal/{acc}.genes.fa.bwt"
+        ref_nuc_cds= "outputs/assembly_prodigal/{acc}.genes.fa",
+        ref_nuc_cds_bwt= "outputs/assembly_prodigal/{acc}.genes.fa.bwt",
         nuc_noncoding="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_noncoding.cut.dedup.only.fna.gz",
     output: temp("outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.nuc_noncoding.bam")
     conda: "envs/bwa.yml"
@@ -302,7 +300,7 @@ rule map_nuc_noncoding_to_ref_nuc_cds:
     bwa mem -t {threads} {input.ref_nuc_set} {input.nuc_noncoding} | samtools sort -o {output} -
     '''
 
-rule flagstat_map_nuc_noncoding_to_ref_nuc_set:
+rule flagstat_map_nuc_noncoding_to_ref_nuc_cds:
     input: "outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.nuc_noncoding.bam"
     output: "outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.nuc_noncoding.flagstat"
     conda: "envs/bwa.yml"
