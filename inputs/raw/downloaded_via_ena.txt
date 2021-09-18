@@ -1,0 +1,4 @@
+62577  wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR085/ERR085327/ERR085327_1.fastq.gz
+62578  wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR085/ERR085327/ERR085327_2.fastq.gz
+62579  wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR085/ERR085299/ERR085299_1.fastq.gz
+62580  wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR085/ERR085299/ERR085299_2.fastq.gz
