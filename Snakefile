@@ -75,7 +75,7 @@ rule kmertrim_sra:
 
 rule fastp_kmertrim_sra_for_read_number:
     input: "outputs/abundtrim/{srr}.abundtrim.fq.gz"
-    output: "outputs/abundtrim_fastp/{srr}.abundtrim.json"
+    output: "outputs/abundtrim_fastp/{srr}.abundtrim.fastp.json"
     conda: 'envs/fastp.yml'
     threads: 1
     resources:
@@ -85,7 +85,7 @@ rule fastp_kmertrim_sra_for_read_number:
     '''
 
 rule multiqc_fastp_kmertrim_sra:
-    input: expand("outputs/abundtrim_fastp/{srr}.abundtrim.json", srr = SRR)
+    input: expand("outputs/abundtrim_fastp/{srr}.abundtrim.fastp.json", srr = SRR)
     output: "outputs/abundtrim_fastp/multiqc_data/mqc_fastp_filtered_reads_plot_1.txt"
     params: 
         indir = "outputs/abundtrim_fastp",
