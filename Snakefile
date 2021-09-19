@@ -26,6 +26,7 @@ rule all:
         #expand("outputs/orpheum/{orpheum_db}/{alpha_ksize}/{srr}.summary.json",orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
         expand("outputs/aa_paladin/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
         expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
+        "outputs/abundtrim_fastp/multiqc_data/mqc_fastp_filtered_reads_plot_1.txt",
         "outputs/assembly_stats/all_assembly_stats.tsv",
         "outputs/assembly_abundtrim_bwa/multiqc_report.html"
 
@@ -70,6 +71,31 @@ rule kmertrim_sra:
         mem_mb=128000
     shell:'''
     interleave-reads.py {input} | trim-low-abund.py --gzip -C 3 -Z 18 -M 128e9 -V - -o {output}
+    '''
+
+rule fastp_kmertrim_sra_for_read_number:
+    input: "outputs/abundtrim/{srr}.abundtrim.fq.gz"
+    output: "outputs/abundtrim_fastp/{srr}.abundtrim.json"
+    conda: 'envs/fastp.yml'
+    threads: 1
+    resources:
+        mem_mb=16000
+    shell:'''
+    fastp -i {input} --interleaved_in -j {output}
+    '''
+
+rule multiqc_fastp_kmertrim_sra:
+    input: expand("outputs/abundtrim_fastp/{srr}.abundtrim.json", srr = SRR)
+    output: "outputs/abundtrim_fastp/multiqc_data/mqc_fastp_filtered_reads_plot_1.txt"
+    params: 
+        indir = "outputs/abundtrim_fastp",
+        outdir = "outputs/abundtrim_fastp"
+    conda: "envs/multiqc.yml"
+    threads: 1
+    resources:
+        mem_mb=4000
+    shell:'''
+    multiqc {params.indir} -o {params.outdir} 
     '''
 
 rule orpheum_translate_sra_reads:        
