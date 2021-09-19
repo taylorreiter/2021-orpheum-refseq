@@ -84,7 +84,7 @@ rule orpheum_translate_sra_reads:
         json="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.summary.json"
     conda: "envs/orpheum.yml"
     benchmark: "benchmarks/orpheum-translate-{srr}-{orpheum_db}-{alphabet}-k{ksize}.txt"
-    resources:  mem_mb=lambda wildcards, attempt: attempt *96000
+    resources:  mem_mb=lambda wildcards, attempt: attempt *2500000
     threads: 1
     shell:'''
     orpheum translate --alphabet {wildcards.alphabet} --peptide-ksize {wildcards.ksize}  --peptides-are-bloom-filter --noncoding-nucleotide-fasta {output.nuc_noncoding} --coding-nucleotide-fasta {output.nuc} --csv {output.csv} --json-summary {output.json} {input.ref} {input.fastq} > {output.pep}
@@ -173,15 +173,15 @@ rule map_nucleotide_reads_against_nucleotide_cds:
         reads="outputs/abundtrim/{srr}.abundtrim.fq.gz"
     output: temp("outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam")
     conda: "envs/bwa.yml"
-    threads: 1
+    threads: 4
     resources: mem_mb = 4000
     shell:'''
-    bwa mem i -p -t {threads} {input.ref_nuc_cds} {input.reads} | samtools sort -o {output} -
+    bwa mem -p -t {threads} {input.ref_nuc_cds} {input.reads} | samtools sort -o {output} -
     '''
 
 rule flagstat_map_nucleotide_reads_against_nucleotide_cds:
     input: "outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam"
-    output: "outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam"
+    output: "outputs/assembly_abundtrim_bwa/{srr}-{acc}.flagstat"
     conda: "envs/bwa.yml"
     resources: mem_mb = 2000
     shell:'''
@@ -189,7 +189,7 @@ rule flagstat_map_nucleotide_reads_against_nucleotide_cds:
     '''
 
 rule multiqc_flagstat_map_nucleotide_reads_against_nucleotide_cds:
-    input: expand("outputs/assembly_abundtrim_bwa/{srr_acc}.bam", srr_acc = SRR_ACC)
+    input: expand("outputs/assembly_abundtrim_bwa/{srr_acc}.flagstat", srr_acc = SRR_ACC)
     output: "outputs/assembly_abundtrim_bwa/multiqc_report.html"
     params: 
         iodir = "outputs/assembly_abundtrim_bwa/"
@@ -223,7 +223,7 @@ rule paladin_align_aa:
         pep="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding.faa"
     output: temp("outputs/aa_paladin/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.aa.sam")
     conda: "envs/paladin.yml"
-    resources: mem_mb = 2000
+    resources: mem_mb = 6000
     threads: 1
     shell:'''
     paladin align -t 1 -p {input.ref} {input.pep} > {output}
@@ -292,7 +292,7 @@ rule map_nuc_noncoding_to_ref_nuc_cds:
         nuc_noncoding="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_noncoding.cut.dedup.only.fna.gz",
     output: temp("outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.nuc_noncoding.bam")
     conda: "envs/bwa.yml"
-    resources: mem_mb = 2000
+    resources: mem_mb = 8000
     threads: 1
     shell:'''
     bwa mem -t {threads} {input.ref_nuc_cds} {input.nuc_noncoding} | samtools sort -o {output} -
@@ -302,7 +302,7 @@ rule flagstat_map_nuc_noncoding_to_ref_nuc_cds:
     input: "outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.nuc_noncoding.bam"
     output: "outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/{srr}-{acc}.nuc_noncoding.flagstat"
     conda: "envs/bwa.yml"
-    resources: mem_mb = 2000
+    resources: mem_mb = 8000
     shell:'''
     samtools flagstat {input} > {output}
     '''
