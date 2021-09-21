@@ -73,9 +73,20 @@ rule kmertrim_sra:
     interleave-reads.py {input} | trim-low-abund.py --gzip -C 3 -Z 18 -M 128e9 -V - -o {output}
     '''
 
-rule fastp_kmertrim_sra_for_read_number:
+rule diginorm_sra:
     input: "outputs/abundtrim/{srr}.abundtrim.fq.gz"
-    output: "outputs/abundtrim_fastp/{srr}.abundtrim.fastp.json"
+    output: "outputs/diginorm/{srr}.diginorm.fq.gz"
+    conda: 'envs/orpheum.yml'
+    threads: 1
+    resources:
+        mem_mb=64000
+    shell:'''
+    normalize-by-median.py -k 20 -C 20 -M 64e9 --gzip -o {output} {input}
+    '''
+
+rule count_reads_in_diginorm_sra:    
+    input: "outputs/diginorm/{srr}.diginorm.fq.gz"
+    output: "outputs/diginorm_fastp/{srr}.diginorm.fastp.json"
     conda: 'envs/fastp.yml'
     threads: 1
     resources:
@@ -84,24 +95,10 @@ rule fastp_kmertrim_sra_for_read_number:
     fastp -i {input} --interleaved_in -j {output}
     '''
 
-rule multiqc_fastp_kmertrim_sra:
-    input: expand("outputs/abundtrim_fastp/{srr}.abundtrim.fastp.json", srr = SRR)
-    output: "outputs/abundtrim_fastp/multiqc_data/mqc_fastp_filtered_reads_plot_1.txt"
-    params: 
-        indir = "outputs/abundtrim_fastp",
-        outdir = "outputs/abundtrim_fastp"
-    conda: "envs/multiqc.yml"
-    threads: 1
-    resources:
-        mem_mb=4000
-    shell:'''
-    multiqc {params.indir} -o {params.outdir} 
-    '''
-
 rule orpheum_translate_sra_reads:        
     input: 
         ref="inputs/orpheum_index/{orpheum_db}.{alphabet}-k{ksize}.nodegraph",
-        fastq="outputs/abundtrim/{srr}.abundtrim.fq.gz"
+        fastq="outputs/diginorm/{srr}.diginorm.fq.gz"
     output:
         pep="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.coding.faa",
         nuc="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.nuc_coding.fna",
@@ -110,7 +107,7 @@ rule orpheum_translate_sra_reads:
         json="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.summary.json"
     conda: "envs/orpheum.yml"
     benchmark: "benchmarks/orpheum-translate-{srr}-{orpheum_db}-{alphabet}-k{ksize}.txt"
-    resources:  mem_mb=lambda wildcards, attempt: attempt *2500000
+    resources:  mem_mb=lambda wildcards, attempt: attempt *16000
     threads: 1
     shell:'''
     orpheum translate --alphabet {wildcards.alphabet} --peptide-ksize {wildcards.ksize}  --peptides-are-bloom-filter --noncoding-nucleotide-fasta {output.nuc_noncoding} --coding-nucleotide-fasta {output.nuc} --csv {output.csv} --json-summary {output.json} {input.ref} {input.fastq} > {output.pep}
