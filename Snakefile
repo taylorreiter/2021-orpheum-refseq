@@ -26,9 +26,8 @@ rule all:
         #expand("outputs/orpheum/{orpheum_db}/{alpha_ksize}/{srr}.summary.json",orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
         expand("outputs/aa_paladin/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
         expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
-        "outputs/abundtrim_fastp/multiqc_data/mqc_fastp_filtered_reads_plot_1.txt",
         "outputs/assembly_stats/all_assembly_stats.tsv",
-        "outputs/assembly_abundtrim_bwa/multiqc_report.html"
+        "outputs/assembly_diginorm_bwa/multiqc_report.html"
 
 rule download_sra:
     output: 
@@ -193,8 +192,8 @@ rule map_nucleotide_reads_against_nucleotide_cds:
     input: 
         ref_nuc_cds= "outputs/assembly_prodigal/{acc}.genes.fa",
         ref_nuc_cds_bwt= "outputs/assembly_prodigal/{acc}.genes.fa.bwt",
-        reads="outputs/abundtrim/{srr}.abundtrim.fq.gz"
-    output: temp("outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam")
+        reads="outputs/diginorm/{srr}.diginorm.fq.gz"
+    output: temp("outputs/assembly_diginorm_bwa/{srr}-{acc}.bam")
     conda: "envs/bwa.yml"
     threads: 4
     resources: mem_mb = 4000
@@ -203,8 +202,8 @@ rule map_nucleotide_reads_against_nucleotide_cds:
     '''
 
 rule flagstat_map_nucleotide_reads_against_nucleotide_cds:
-    input: "outputs/assembly_abundtrim_bwa/{srr}-{acc}.bam"
-    output: "outputs/assembly_abundtrim_bwa/{srr}-{acc}.flagstat"
+    input: "outputs/assembly_diginorm_bwa/{srr}-{acc}.bam"
+    output: "outputs/assembly_diginorm_bwa/{srr}-{acc}.flagstat"
     conda: "envs/bwa.yml"
     resources: mem_mb = 2000
     shell:'''
@@ -212,10 +211,10 @@ rule flagstat_map_nucleotide_reads_against_nucleotide_cds:
     '''
 
 rule multiqc_flagstat_map_nucleotide_reads_against_nucleotide_cds:
-    input: expand("outputs/assembly_abundtrim_bwa/{srr_acc}.flagstat", srr_acc = SRR_ACC)
-    output: "outputs/assembly_abundtrim_bwa/multiqc_report.html"
+    input: expand("outputs/assembly_diginorm_bwa/{srr_acc}.flagstat", srr_acc = SRR_ACC)
+    output: "outputs/assembly_diginorm_bwa/multiqc_report.html"
     params: 
-        iodir = "outputs/assembly_abundtrim_bwa/"
+        iodir = "outputs/assembly_diginorm_bwa/"
     conda: "envs/multiqc.yml"
     resources: mem_mb = 8000
     threads: 1
