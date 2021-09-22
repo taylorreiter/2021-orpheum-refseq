@@ -24,8 +24,8 @@ SRR_ACC =  metadata['srr_acc'].to_list()
 rule all:
     input:
         #expand("outputs/orpheum/{orpheum_db}/{alpha_ksize}/{srr}.summary.json",orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
-        expand("outputs/aa_paladin/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
-        expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_report.html", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
+        expand("outputs/aa_paladin/{orpheum_db}/{alpha_ksize}/multiqc_data/multiqc_samtools_flagstat.txt", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
+        expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_data/multiqc_samtools_flagstat.txt", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
         "outputs/assembly_stats/all_assembly_stats.tsv",
         "outputs/assembly_diginorm_bwa/multiqc_report.html"
 
@@ -263,7 +263,7 @@ rule samtools_flagstat_paladin_aa:
 
 rule multiqc_samtools_flagstat_paladin:
     input: expand("outputs/aa_paladin/{{orpheum_db}}/{{alphabet}}-k{{ksize}}/{srr_acc}.aa.flagstat", srr_acc = SRR_ACC)
-    output: "outputs/aa_paladin/{orpheum_db}/{alphabet}-k{ksize}/multiqc_report.html"
+    output: "outputs/aa_paladin/{orpheum_db}/{alphabet}-k{ksize}/multiqc_data/multiqc_samtools_flagstat.txt"
     resources: mem_mb = 8000
     threads: 1
     params: 
@@ -331,7 +331,7 @@ rule flagstat_map_nuc_noncoding_to_ref_nuc_cds:
 
 rule multiqc_flagstat_map_nuc_noncoding_to_ref_nuc_set:
     input: expand("outputs/nuc_noncoding_bwa/{{orpheum_db}}/{{alphabet}}-k{{ksize}}/{srr_acc}.nuc_noncoding.flagstat", srr_acc = SRR_ACC), 
-    output: "outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/multiqc_report.html"
+    output: "outputs/nuc_noncoding_bwa/{orpheum_db}/{alphabet}-k{ksize}/multiqc_data/multiqc_samtools_flagstat.txt"
     params: 
         iodir = lambda wildcards: "outputs/nuc_noncoding_bwa/" + wildcards.orpheum_db + "/" + wildcards.alphabet + "-k" + wildcards.ksize,
     conda: "envs/multiqc.yml"
