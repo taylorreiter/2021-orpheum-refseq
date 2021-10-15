@@ -4,10 +4,10 @@ SRR = metadata['Run'].to_list()
 ACC = metadata['assembly_accession'].to_list()
 
 #ORPHEUM_DB = ["c__Clostridia", "f__Lachnospiraceae", "p__Firmicutes_A"]
-ORPHEUM_DB = ["p__Firmicutes_A"]
+ORPHEUM_DB = ["p__Firmicutes_A", "gtdb-rs202"]
 # set constrained k sizes
-dayhoff_ksizes = [14, 16, 18]
-protein_ksizes = [7, 10]
+#dayhoff_ksizes = [14, 16, 18]
+protein_ksizes = [10]
 # Snakemake will use the ALPHA_KSIZE wildcard from rule all to generate output file names
 # Then, snakemake will back propagate the strings from the final file names to solve for
 # the wildcards "alphabet" and "ksize" throughout the rest of the workflow. 
@@ -15,7 +15,7 @@ protein_ksizes = [7, 10]
 # the ksize string, allowing snakemake to solve {alphabet}_{ksize} wildcard strings. 
 # Therefore, the chrs in the ALPHA_KSIZE list also set the alphabet names as "dayhoff" and "protein".
 ALPHA_KSIZE = expand('protein-k{k}', k=protein_ksizes)
-ALPHA_KSIZE += expand('dayhoff-k{k}', k=dayhoff_ksizes)
+#ALPHA_KSIZE += expand('dayhoff-k{k}', k=dayhoff_ksizes)
 
 # Do something similar to constrain SRR:genome accessions
 metadata['srr_acc'] = metadata['Run'] + "-" + metadata['assembly_accession']
@@ -26,6 +26,7 @@ rule all:
         #expand("outputs/orpheum/{orpheum_db}/{alpha_ksize}/{srr}.summary.json",orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE, srr = SRR),
         expand("outputs/aa_paladin/{orpheum_db}/{alpha_ksize}/multiqc_data/multiqc_samtools_flagstat.txt", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
         expand("outputs/nuc_noncoding_bwa/{orpheum_db}/{alpha_ksize}/multiqc_data/multiqc_samtools_flagstat.txt", orpheum_db = ORPHEUM_DB, alpha_ksize = ALPHA_KSIZE),
+        expand("outputs/assembly_diginorm_bwa/{srr_acc}_counts.txt", srr_acc = SRR_ACC), 
         "outputs/assembly_stats/all_assembly_stats.tsv",
         "outputs/assembly_diginorm_bwa/multiqc_report.html"
 
@@ -106,7 +107,8 @@ rule orpheum_translate_sra_reads:
         json="outputs/orpheum/{orpheum_db}/{alphabet}-k{ksize}/{srr}.summary.json"
     conda: "envs/orpheum.yml"
     benchmark: "benchmarks/orpheum-translate-{srr}-{orpheum_db}-{alphabet}-k{ksize}.txt"
-    resources:  mem_mb=lambda wildcards, attempt: attempt *16000
+    #resources:  mem_mb=lambda wildcards, attempt: attempt *600000
+    resources:  mem_mb=600000
     threads: 1
     shell:'''
     orpheum translate --alphabet {wildcards.alphabet} --peptide-ksize {wildcards.ksize}  --peptides-are-bloom-filter --noncoding-nucleotide-fasta {output.nuc_noncoding} --coding-nucleotide-fasta {output.nuc} --csv {output.csv} --json-summary {output.json} {input.ref} {input.fastq} > {output.pep}
@@ -136,19 +138,19 @@ rule gunzip_assemblies:
     gunzip -c {input} > {output}
     '''
 
-rule prodigal_translate_assemblies:
-    input: "inputs/assemblies/{acc}_genomic.fna",
-    output: 
-        logg= "outputs/assembly_prodigal/{acc}.out",
-        proteins="outputs/assembly_prodigal/{acc}.proteins.faa",
-        genes="outputs/assembly_prodigal/{acc}.genes.fa"
-    conda: "envs/prodigal.yml"
-    threads: 1
-    resources:
-        mem_mb=lambda wildcards, attempt: attempt *10000,
-    shell:"""
-    prodigal -i {input} -o {output.logg} -a {output.proteins} -d {output.genes} 
-    """
+#rule prodigal_translate_assemblies:
+#    input: "inputs/assemblies/{acc}_genomic.fna",
+#    output: 
+#        logg= "outputs/assembly_prodigal/{acc}.out",
+#        proteins="outputs/assembly_prodigal/{acc}.proteins.faa",
+#        genes="outputs/assembly_prodigal/{acc}.genes.fa"
+#    conda: "envs/prodigal.yml"
+#    threads: 1
+#    resources:
+#        mem_mb=lambda wildcards, attempt: attempt *10000,
+#    shell:"""
+#    prodigal -i {input} -o {output.logg} -a {output.proteins} -d {output.genes} 
+#    """
 
 rule count_coding_bp_assemblies:
     input: "inputs/assemblies/{acc}_genomic.fna"
@@ -160,7 +162,7 @@ rule count_coding_bp_assemblies:
     '''
 
 rule count_total_aa_assemblies:
-    input: "outputs/assembly_prodigal/{acc}.proteins.faa"
+    input: "outputs/assembly_bakta/{acc}.faa"
     output: "outputs/assembly_stats/{acc}_aa.txt"
     threads: 1
     resources: mem_mb=1000
@@ -178,9 +180,43 @@ rule summarize_coding_assemblies:
     conda: "envs/tidyverse.yml"
     script: "scripts/combine_assembly_stats.R"
 
-rule index_nuc_cds_assemblies:
-    input: "outputs/assembly_prodigal/{acc}.genes.fa"
-    output: "outputs/assembly_prodigal/{acc}.genes.fa.bwt"
+rule download_bakta_db:
+    output: "inputs/bakta_db/db/version.json"
+    threads: 1
+    resources: mem_mb = 4000
+    conda: "envs/bakta.yml"
+    shell:'''
+    bakta_db download --output {output}
+    '''
+
+rule bakta_annotate_assemblies:
+    input:
+        db = "inputs/bakta_db/db/version.json",
+        assembly = "inputs/assemblies/{acc}_genomic.fna"
+    output: 
+        "outputs/assembly_bakta/{acc}.gff3",
+        "outputs/assembly_bakta/{acc}.fna"
+    conda: "envs/bakta.yml"
+    threads: 1
+    params: 
+        outdir="outputs/assembly_bakta/",
+        dbdir="inputs/bakta_db/db"
+    resources: mem_mb = 16000
+    shell:'''
+    bakta --db {params.dbdir} --prefix {wildcards.acc} --output {params.outdir} --locus-tag {wildcards.acc} {input.assembly}
+    '''
+
+rule convert_gff_to_gtf_assemblies:
+    input: gff="outputs/assembly_bakta/{acc}.gff3"
+    output: gtf="outputs/assembly_bakta/{acc}.gtf"
+    conda: "envs/rtracklayer.yml"
+    threads: 1
+    resources: mem_mb = 16000
+    script: "scripts/convert_gff_to_gtf.R"
+
+rule index_assemblies:
+    input: "outputs/assembly_bakta/{acc}.fna"
+    output: "outputs/assembly_bakta/{acc}.fna.bwt"
     conda: "envs/bwa.yml"
     resources: mem_mb = 2000
     threads: 1
@@ -188,20 +224,20 @@ rule index_nuc_cds_assemblies:
     bwa index {input}
     ''' 
 
-rule map_nucleotide_reads_against_nucleotide_cds:
+rule map_nucleotide_reads_against_assembly:
     input: 
-        ref_nuc_cds= "outputs/assembly_prodigal/{acc}.genes.fa",
-        ref_nuc_cds_bwt= "outputs/assembly_prodigal/{acc}.genes.fa.bwt",
+        ref_assembly= "outputs/assembly_bakta/{acc}.fna",
+        ref_assembly_bwt= "outputs/assembly_bakta/{acc}.fna.bwt",
         reads="outputs/diginorm/{srr}.diginorm.fq.gz"
-    output: temp("outputs/assembly_diginorm_bwa/{srr}-{acc}.bam")
+    output: "outputs/assembly_diginorm_bwa/{srr}-{acc}.bam"
     conda: "envs/bwa.yml"
     threads: 4
     resources: mem_mb = 4000
     shell:'''
-    bwa mem -p -t {threads} {input.ref_nuc_cds} {input.reads} | samtools sort -o {output} -
+    bwa mem -p -t {threads} {input.ref_assembly} {input.reads} | samtools sort -o {output} -
     '''
 
-rule flagstat_map_nucleotide_reads_against_nucleotide_cds:
+rule flagstat_map_nucleotide_reads_against_assembly:
     input: "outputs/assembly_diginorm_bwa/{srr}-{acc}.bam"
     output: "outputs/assembly_diginorm_bwa/{srr}-{acc}.flagstat"
     conda: "envs/bwa.yml"
@@ -210,7 +246,7 @@ rule flagstat_map_nucleotide_reads_against_nucleotide_cds:
     samtools flagstat {input} > {output}
     '''
 
-rule multiqc_flagstat_map_nucleotide_reads_against_nucleotide_cds:
+rule multiqc_flagstat_map_nucleotide_reads_against_assembly:
     input: expand("outputs/assembly_diginorm_bwa/{srr_acc}.flagstat", srr_acc = SRR_ACC)
     output: "outputs/assembly_diginorm_bwa/multiqc_report.html"
     params: 
@@ -221,6 +257,16 @@ rule multiqc_flagstat_map_nucleotide_reads_against_nucleotide_cds:
     shell:'''
     multiqc {params.iodir} -o {params.iodir} 
     '''
+
+rule featureCounts_nucleotide_reads_against_assembly:
+    input: 
+        bam = "outputs/assembly_diginorm_bwa/{srr}-{acc}.bam",
+        gtf = "outputs/assembly_bakta/{acc}.gtf"
+    output: counts = "outputs/assembly_diginorm_bwa/{srr}-{acc}_counts.txt"
+    conda: "envs/rsubread.yml"
+    resources: mem_mb = 8000
+    threads: 1
+    script: "scripts/featureCounts.R"
 
 ####################################################
 ## Evaluate orpheum
