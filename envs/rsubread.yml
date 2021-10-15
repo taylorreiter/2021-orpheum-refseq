@@ -1,0 +1,6 @@
+channels:
+ - conda-forge
+ - bioconda
+ - defaults
+dependencies:
+ - bioconductor-rsubread=2.6.1 
